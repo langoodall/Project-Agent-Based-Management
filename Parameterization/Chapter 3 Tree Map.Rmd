@@ -1,0 +1,389 @@
+---
+title: "Tree Map Initial Communities"
+author: "Louis Goodall"
+date: "2024-10-26"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(terra)
+library(sf)
+library(data.table)
+```
+
+
+
+```{r}
+treeMap <- rast('/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/For Testing/TreeMap 2014/Data/national_c2014_tree_list.tif')
+crs(treeMap) <- "EPSG:5070"
+
+# Piedmont.shp <- st_read("/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/Parameterisation/NC Ecoregions & Projections/Level 3/nc_eco_l3.shp") %>%
+#   st_transform(crs = crs(treeMap))
+
+# Get 3 of the top 10 counties for timber income (#1 Anson, #5 Montgomery and # 10 Richmond)
+countiesNC <- st_read("/Users/louisgoodall/Desktop/North_Carolina_State_and_County_Boundary_Polygons/North_Carolina_State_and_County_Boundary_Polygons.shp") %>%
+  st_transform(crs = crs(treeMap))
+threeCounties <- countiesNC %>% filter(County %in% c("Anson", "Montgomery", "Richmond")) %>%
+  st_union(.) %>%
+  st_as_sf(.)
+
+# Crop tree map to our 3 counties of interest and reproject
+treeMap <- crop(treeMap, threeCounties) %>%
+  terra::mask(., threeCounties)
+treeMap[is.na(treeMap)] <- 0
+treeMap <- project(treeMap, "EPSG:26917", method = "near")
+rastTemplate <- rast(extent = treeMap,
+                     resolution = 70.71068,
+                     crs = "EPSG:26917")
+treeMap <- resample(treeMap, rastTemplate, method = "near")
+
+# get plot counts
+plot_counts <- table(values(treeMap)) %>% as.data.frame()
+tl_plots <- data.table::fread('/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/For Testing/TreeMap 2014/Data/TL_CN_Lookup.txt') %>%
+  filter(tl_id %in% values(treeMap))
+
+# # Gotta test to see the difference in basal area after removing other States
+# tl_trees_all <- data.table::fread('/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/For Testing/TreeMap 2014/Data/Tree_table_CONUS.txt') %>%
+#   filter(tl_id %in% values(treeMap))
+
+tl_trees <- data.table::fread('/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/For Testing/TreeMap 2014/Data/Tree_table_CONUS.txt') %>%
+  filter(tl_id %in% values(treeMap),
+         State_Abbreviation %in% c("NC", "SC", "VA", "GA", "TN"))
+
+speciesREF <- readxl::read_excel("/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/USFS Coefficients/REF_SPECIES.xlsx")
+
+# Get the basal area by species
+tl_trees_ba <- tl_trees %>%
+  dplyr::group_by(tl_id, SPCD) %>%
+  dplyr::summarise(plot_ba = sum(I((DIA/2)^2), na.rm = TRUE), .group = "drop") %>%
+  dplyr::mutate(tl_id = as.factor(tl_id)) %>%
+  dplyr::left_join(plot_counts, by = c("tl_id" = "Var1")) %>% #add column for how frequent each plot type is
+  dplyr::mutate(study_area_ba = plot_ba * Freq) %>%
+  dplyr::group_by(SPCD) %>%
+  dplyr::summarise(species_ba_total = sum(study_area_ba)/10000) %>%
+  dplyr::arrange(species_ba_total) %>%
+  dplyr::left_join(dplyr::select(speciesREF, c("SPCD", "SPECIES_SYMBOL", "GENUS", "SPECIES"))) %>%
+  dplyr::mutate(species_ba_pct = species_ba_total / sum(species_ba_total))
+
+# tl_trees_ba_all <- tl_trees_all %>%
+#   dplyr::group_by(tl_id, SPCD) %>%
+#   dplyr::summarise(plot_ba = sum(I((DIA/2)^2), na.rm = TRUE), .group = "drop") %>%
+#   dplyr::mutate(tl_id = as.factor(tl_id)) %>%
+#   dplyr::left_join(plot_counts, by = c("tl_id" = "Var1")) %>% #add column for how frequent each plot type is
+#   dplyr::mutate(study_area_ba = plot_ba * Freq) %>%
+#   dplyr::group_by(SPCD) %>%
+#   dplyr::summarise(species_ba_total = sum(study_area_ba)/10000) %>%
+#   dplyr::arrange(species_ba_total) %>%
+#   dplyr::left_join(dplyr::select(speciesREF, c("SPCD", "SPECIES_SYMBOL", "GENUS", "SPECIES"))) %>%
+#   dplyr::mutate(species_ba_pct = species_ba_total / sum(species_ba_total))
+
+# sum(tl_trees_ba$species_ba_total) / sum(tl_trees_ba_all$species_ba_total)
+# # 98.13% of the basal area is retained by using the 5 states strategy
+
+piedmontSpp <- tl_trees_ba %>%
+  arrange(desc(species_ba_pct)) %>%
+  mutate(cumulativePct = cumsum(species_ba_pct)) %>%
+  filter(species_ba_pct > 0.005)
+
+# Object containing only the spp of interest
+landscapeSpp <- piedmontSpp %>% select(SPECIES_SYMBOL) %>% arrange(SPECIES_SYMBOL)
+
+# Loop to read in and bind 5 states TREE tables (NC,GA,VA,SC,TN)
+csv_directory <- "/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/FIA Data/5 States/TREE"
+csv_files <- list.files(path = csv_directory, pattern = "*.csv", full.names = TRUE)
+csv_list <- lapply(csv_files, fread)
+treeTable5States <- rbindlist(csv_list, use.names = TRUE, fill = TRUE)
+rm(csv_list)
+fia_trees <- treeTable5States %>% filter(PLT_CN %in% tl_plots$CN)
+rm(treeTable5States)
+
+# COND
+csv_directory <- "/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/FIA Data/5 States/COND"
+csv_files <- list.files(path = csv_directory, pattern = "*.csv", full.names = TRUE)
+csv_list <- lapply(csv_files, fread)
+condTable5States <- rbindlist(csv_list, use.names = TRUE, fill = TRUE)
+rm(csv_list)
+fia_cond <- condTable5States %>% filter(PLT_CN %in% tl_plots$CN)
+
+# SITE_TREE
+# This contains more tables than just the 5 states listed because we need them
+# to make the age ~ diameter relationship. I start with states closest to NC
+# and move further afield if I need to
+csv_directory <- "/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/FIA Data/5 States/SITE_TREE"
+csv_files <- list.files(path = csv_directory, pattern = "*.csv", full.names = TRUE)
+csv_list <- lapply(csv_files, fread)
+siteTreeTable5States <- rbindlist(csv_list, use.names = TRUE, fill = TRUE)
+rm(csv_list)
+sitetrees <- siteTreeTable5States %>% filter(SPCD %in% piedmontSpp$SPCD)
+
+# Read in CA SITETREE table. Coastal redwood (SPCD == 211) is the closest genetic species
+# to the bald cypress (SPCD == 221)
+sitetreesCA <- read_csv('/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/FIA Data/5 States/SITE_TREE/CA_SITETREE.csv') %>% filter(SPCD == 211)
+sitetrees <- rbind(sitetrees, sitetreesCA) %>% mutate(SPCD = ifelse(SPCD == 211, 221, SPCD)) # Will need to make the SPCD == 222 model from this data too
+
+#----AGE CALCULATIONS----#
+# Fit a linear regression
+tree_regressions <- sitetrees %>%
+  filter(!is.na(DIA) & !is.na(AGEDIA) & !is.na(SPCD)) %>%
+  filter(SPCD %in% fia_trees$SPCD) %>%
+  group_by(SPCD) %>%
+  do(model = lm(AGEDIA ~ log(DIA) + 0, data = .)) %>%
+  filter(SPCD %in% piedmontSpp$SPCD)
+
+
+# Add in row for NYBI, QULA2, QULA3, NYBI
+# NYBI
+spcd694Row <- tree_regressions %>%
+  filter(SPCD == 693) %>%
+  mutate(SPCD = 694)
+tree_regressions <- bind_rows(tree_regressions, spcd694Row) %>%
+  arrange(SPCD)
+# QULA2
+spcd819Row <- tree_regressions %>%
+  filter(SPCD == 827) %>%
+  mutate(SPCD = 819)
+tree_regressions <- bind_rows(tree_regressions, spcd819Row) %>%
+  arrange(SPCD)
+# QULA3
+spcd820Row <- tree_regressions %>%
+  filter(SPCD == 827) %>%
+  mutate(SPCD = 820)
+tree_regressions <- bind_rows(tree_regressions, spcd820Row) %>%
+  arrange(SPCD)
+# QUMA3
+spcd824Row <- tree_regressions %>%
+  filter(SPCD == 827) %>%
+  mutate(SPCD = 824)
+tree_regressions <- bind_rows(tree_regressions, spcd824Row) %>%
+  arrange(SPCD)
+
+#----BIOMASS----#
+# Check functional shape between age and diameter
+fia_trees <- fia_trees %>%
+  # select(SPCD, DIA) %>%
+  inner_join(tree_regressions, by = "SPCD") %>%
+  mutate(Age = map2_dbl(model, DIA, ~predict(.x, newdata = tibble(DIA = .y)))) %>%
+  inner_join(piedmontSpp[,c(1,3)], by = "SPCD")
+
+# This is being created because fia_trees is for some reason saving
+# as a weirdly large file (146.1 GB)
+plottingTable <- fia_trees %>% select(Age, SPECIES_SYMBOL)
+
+ggplot(plottingTable, aes(x = SPECIES_SYMBOL, y = Age, fill = SPECIES_SYMBOL)) +
+  geom_boxplot() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  ylim(0,100)
+
+# # Quick test to see a histogram of the PITA ages
+# x <- fia_trees %>% filter(SPECIES_SYMBOL == "PITA")
+# hist(x$Age)
+hist(fia_trees$Age)
+
+# Clean data and create breaks
+breaks <- seq(0, 100, 10)
+
+# Calculate cohort biomass
+site_biomass <- fia_trees %>%
+  mutate(biomass_area = DRYBIO_AG * TPA_UNADJ) %>%
+  mutate(Age = ifelse(Age < 1, 1, Age)) %>%
+  mutate(bin = cut(Age, breaks = breaks, labels = breaks[-1], right = TRUE),
+         bin = as.integer(as.character(bin))) %>%
+  group_by(PLT_CN, SPCD, bin) %>%
+  summarise(biomass = sum(biomass_area)) %>%
+  mutate(biomass = round(biomass, digits = 0),
+         biomass = biomass * 0.11) # convert from lb/ac to g/m2
+names(site_biomass) <- c("PLT_CN", "SPCD", "CohortAge", "CohortBiomass")
+
+# Remove fia_trees because it is weirdly large
+rm(fia_trees)
+
+# Calculate site total biomass
+site_total_biomass <- site_biomass %>%
+  group_by(PLT_CN) %>%
+  summarise(total_biomass = sum(CohortBiomass, na.rm = TRUE)) %>%
+  mutate(total_biomass_tonnes_ha = total_biomass * 0.01)
+
+# Get the MapCode for each unique one
+site_total_biomass2 <- site_total_biomass %>%
+  mutate(MapCode = tl_plots[match(PLT_CN, tl_plots$CN), "tl_id"])
+
+# MapCodeDf
+MapCodeDf <- site_total_biomass2 %>%
+  unnest(MapCode) %>%
+  mutate(ID = 1:length(unique(tl_id))) %>%
+  left_join(site_biomass, by = "PLT_CN") %>%
+  select(PLT_CN, ID, SPCD, CohortAge, CohortBiomass, tl_id) %>%
+  `colnames<-`(c("PLT_CN", "MapCode", "SPCD", "CohortAge", "CohortBiomass", "tl_id"))
+MapCodeDf$PLT_CN <- as.numeric(MapCodeDf$PLT_CN)
+
+# Read in plot tables for all 50 states 
+plot_directory <- '/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/FIA Data/5 States/PLOT'
+csv_files <- list.files(path = plot_directory, pattern = "*.csv", full.names = TRUE)
+plotDf <- do.call(rbind, lapply(csv_files, read_csv))
+
+# Merge PLOT tables with MapCodeDf
+mergedMapCode <- plotDf %>%
+  left_join(MapCodeDf, by = c("CN" = "PLT_CN")) %>%
+  filter(!is.na(tl_id))
+# sort(unique(mergedMapCode$STATECD))
+mergedMapCode %>% select(tl_id) %>% arrange(tl_id) %>% unique()
+
+# Tree map values
+valuesTreeMap <- values(treeMap) %>%
+  as.data.frame() %>%
+  drop_na() %>%
+  unique() %>%
+  arrange(tl_id)
+
+# Get the tl_ids that are both in the 3 counties and are from the 5 states
+statesTLID <- mergedMapCode %>%
+  filter(tl_id %in% valuesTreeMap$tl_id) %>%
+  select(tl_id) %>%
+  unique() %>%
+  arrange(tl_id)
+
+# Test the tl_ids that are in the landscape
+test <- ifel(treeMap %in% statesTLID$tl_id, 1, 2)
+plot(test, col = c("green", "black"))
+plot(mask(test, Piedmont.shp.UTM17N), col = c("green", "black"))
+plot(clippedPiedmont.Shp, col = NA, add = TRUE)
+testTwo <- ifel(treeMap %in% statesTLID$tl_id, 1, 2)
+plot(testTwo, col = c("green", "black"))
+
+# Filter out the non 5 state tl_ids, unneeded (I think)
+treeMap <- ifel(treeMap %in% statesTLID$tl_id, treeMap, NA)
+
+# Some CohortBiomass values are NAs and need to be filled with the median values
+# grouped by SPCD and CohortAge
+medianBiomassValues <- mergedMapCode %>%
+  filter(tl_id %in% valuesPostClip$tl_id,
+         !is.na(CohortAge)) %>%
+  select(CN, MapCode, SPCD, CohortAge, CohortBiomass, tl_id) %>%
+  group_by(SPCD, CohortAge) %>%
+  summarise(medianBiomass = median(CohortBiomass, na.rm = TRUE))
+
+# Add the NA values with median values
+MapCodeDf <- MapCodeDf %>%
+  left_join(medianBiomassValues, by = c("SPCD", "CohortAge")) %>%
+  mutate(CohortBiomass = coalesce(CohortBiomass, medianBiomass)) %>%
+  select(-medianBiomass) %>%
+  drop_na()
+
+# Create map code matrix
+MapCodeMatrix <- MapCodeDf[,c(6,6,2)] %>% as.matrix()
+
+# Reclassify treeMap
+finalTreeMap <- terra::classify(treeMap, rcl = MapCodeMatrix)
+
+plot(finalTreeMap)
+
+writeRaster(finalTreeMap,
+            filename = '/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/Chapter 3/Tree Map Outputs/finalTreeMap.tif',
+            NAflag = NA,
+            overwrite = TRUE,
+            datatype = "INT4S")
+
+finalMapCodeDf <- MapCodeDf %>%
+  inner_join(speciesREF, by = "SPCD") %>%
+  select(tl_id, SPECIES_SYMBOL, CohortAge, CohortBiomass) %>%
+  `colnames<-`(c("MapCode", "SpeciesName", "CohortAge", "CohortBiomass"))
+
+write_csv(finalMapCodeDf, '/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/Chapter 3/Tree Map Outputs/finalMapCodeDf.csv')
+```
+
+
+# Belowground Rasters
+
+```{r}
+#----CWD----#
+site_total_biomass$cwd <- site_total_biomass$total_biomass * 0.19
+
+#----COARSE ROOTS----#
+# Loop to read in and bind 5 states TREE tables (NC,GA,VA,SC,TN)
+csv_directory <- "/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/FIA Data/5 States/TREE"
+csv_files <- list.files(path = csv_directory, pattern = "*.csv", full.names = TRUE)
+csv_list <- lapply(csv_files, fread)
+treeTable5States <- rbindlist(csv_list, use.names = TRUE, fill = TRUE)
+rm(csv_list)
+fia_trees <- treeTable5States %>% filter(PLT_CN %in% tl_plots$CN)
+rm(treeTable5States)
+
+# Calulate coarse root biomass
+site_total_biomass <- fia_trees %>%
+  mutate(biomass_area = DRYBIO_BG * TPA_UNADJ) %>%
+  group_by(PLT_CN) %>%
+  summarise(root_biomass = sum(biomass_area, na.rm = TRUE)) %>%
+  mutate(root_biomass = round(root_biomass, digits = 0)) %>%
+  mutate(root_biomass = root_biomass * 0.11) %>% # convert from lbs/ac to g/m2
+  mutate(root_biomass = root_biomass * 0.3) %>% # Live roots to dead roots
+  left_join(site_total_biomass, by = "PLT_CN")
+
+# Match the correct tl_ids
+site_total_biomass <- mutate(site_total_biomass, MapCode = tl_plots[match(PLT_CN, tl_plots$CN), "tl_id"])
+site_total_biomass <- site_total_biomass %>% unnest(MapCode)
+
+# Create the cwd raster
+cwdRast <- terra::subst(finalTreeMap, from = site_total_biomass$tl_id, to = site_total_biomass$cwd)
+values(cwdRast) <- ifelse(values(cwdRast) <= 0 | is.na(values(cwdRast)), 1, values(cwdRast))
+
+writeRaster(cwdRast,
+            filename = '/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/Chapter 3/Tree Map Outputs/cwdRast.tif',
+            datatype = "FLT4S",
+            NAflag = 0,
+            overwrite = TRUE)
+
+rootRast <- terra::subst(finalTreeMap, from = site_total_biomass$tl_id, to = site_total_biomass$root_biomass)
+values(rootRast) <- ifelse(values(rootRast) <= 0 | is.na(values(rootRast)), 1, values(rootRast))
+
+writeRaster(rootRast,
+            filename = '/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/Chapter 3/Tree Map Outputs/rootRast.tif',
+            datatype = "FLT4S",
+            NAflag = 0,
+            overwrite = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+NC_FIA <- rFIA::readFIA('/Users/louisgoodall/Desktop/HOLY FUCK A PHD/The Big One/FIA Data/NC_2021')
+
+biomass <- rFIA::biomass(db = NC_FIA,
+                         polys = clippedPiedmont.Shp,
+                         total = TRUE,
+                         landType = "forest",
+                         treeType = "live",
+                         method = "sma")
+
+
+biomass %>%
+  select(YEAR, BIO_ACRE) %>%
+  mutate(BIO_KG_M2 = BIO_ACRE * 0.22417)
+
+rm(NC_FIA)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

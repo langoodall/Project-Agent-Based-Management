@@ -1,0 +1,127 @@
+---
+title: "Stands Map"
+output: pdf_document
+date: "2024-11-12"
+---
+
+```{r}
+library(tidyverse)
+library(terra)
+library(sf)
+```
+
+
+
+```{r}
+# Read in 3 counties shapefile and the HUC 12 watershed of NC
+threeCounties.Shp <- st_read("C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/Three_Counties_Rasters/Shapefile/threeCounties.shp")
+watershedsHUC <- st_read("C:/Users/lagoodal/Desktop/All Raster Layers/HUC 8 Watersheds/Shape/WBDHU12.shp")
+
+# Project the shapefile to the watershed shapefile, then crop and mask
+threeCounties.Shp <- threeCounties.Shp %>%
+  st_transform(., crs = crs(watershedsHUC))
+watershedsHUC <- watershedsHUC %>%
+  st_crop(., threeCounties.Shp) %>%
+  st_intersection(., threeCounties.Shp)
+
+# Add in county borders to act as extra stand divisions which will then
+# match our future management areas
+countiesNC <- st_read("C:/Users/lagoodal/Desktop/nc_eco_l3/North_Carolina_State_and_County_Boundary_Polygons.shp")
+threeCounties <- countiesNC %>%
+  st_as_sf() %>%
+  filter(County %in% c("Anson", "Montgomery", "Richmond")) %>%
+  st_transform(., crs = crs(watershedsHUC))
+watershedsHUC <- watershedsHUC %>% st_intersection(., threeCounties)
+
+
+plot(watershedsHUC[12])
+plot(threeCounties[2])
+
+# st_write(threeCounties[2],
+#          dsn = "C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/SOSIEL Experiment/Shapefiles/ThreeCounties.shp")
+```
+
+
+
+```{r}
+# Create a shapefile that has the major roads in the 3 county region, which is
+# also bounded by the 3 counties border
+roadsNC <- st_read("C:/Users/lagoodal/Desktop/Dissertation Stuff/Data/County Roads/State_Maintained_Roads.shp")
+roadsNC <- roadsNC[2]
+threeCounties.Shp <- threeCounties.Shp %>% st_transform(., crs = crs(roadsNC))
+intersection_result <- st_intersection(roadsNC, threeCounties.Shp)
+plot(intersection_result)
+
+
+# st_write(intersection_result[2],
+#          dsn = "C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/SOSIEL Experiment/Shapefiles/roadsTC.shp")
+
+```
+
+
+# Bring back from QGIS
+
+```{r}
+standsTC <- st_read("C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/SOSIEL Experiment/Shapefiles/standsTC.shp") %>%
+  st_transform(., crs = "EPSG:26917") %>%
+  mutate(StandID = 1:nrow(.))
+plot(standsTC[7])
+
+templateRaster <- rast("C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/Three_Counties_Rasters/templateRaster.tif")
+
+standRast <- rasterize(standsTC, templateRaster, field = "StandID")
+
+# I need to edit some of the stands because they are straddling two different MAs
+# Stand 1258
+x <- ifel(standRast == 1258, 1, NA)
+stack <- c(x, ManagementAreaRast)
+df <- as.data.frame(stack, cell = TRUE) %>%
+  filter(StandID == 1) %>%
+  mutate(row = (cell - 1) %/% 1121 + 1,
+         col = (cell - 1) %% 1121 + 1)
+df %>% filter(ID == 3)
+standRast[562,482] <- 2
+standRast[564,453] <- 2
+
+# Stand 1259
+x <- ifel(standRast == 1259, 1, NA)
+stack <- c(x, ManagementAreaRast)
+df <- as.data.frame(stack, cell = TRUE) %>%
+  filter(StandID == 1) %>%
+  mutate(row = (cell - 1) %/% 1121 + 1,
+         col = (cell - 1) %% 1121 + 1)
+df %>% filter(ID == 2)
+standRast[564,470] <- 3
+
+plot(standRast)
+plot(ManagementAreaRast)
+
+# writeRaster(standRast,
+#             filename = "C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/SOSIEL Experiment/Harvest/standRast.tif",
+#             NAflag = 0,
+#             datatype = "INT2S",
+#             overwrite = TRUE)
+# 
+# writeRaster(ManagementAreaRast,
+#             filename = "C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/SOSIEL Experiment/Harvest/ManagementAreas.tif",
+#             datatype = "INT1U",
+#             NAflag = 0,
+#             overwrite = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

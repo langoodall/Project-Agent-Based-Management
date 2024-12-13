@@ -17,4 +17,6 @@ Anson, Montgomery and Richmond counties represent three of the top 10 counties i
 
 Thank you to our funding sources:
 
+![image](https://github.com/user-attachments/assets/2a75e8c3-8d16-4838-b655-5cb447902943)
+
 ![](https://cnr.ncsu.edu/geospatial/wp-content/uploads/sites/22/2017/06/cgaBlack.png)

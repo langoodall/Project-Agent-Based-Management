@@ -14,3 +14,7 @@ The United States is one of the world's leaders in timber production and the sou
 
 
 Anson, Montgomery and Richmond counties represent three of the top 10 counties in NC for their delivered value from 2022. Each of these counties is assigned a primary goal within which agents will harvest and learn. At each timestep the agents update their cognitive behaviour and begin implementing the next phase of management based upon what they have learned in the previous iteration of harvesting.  
+
+Thank you to our funding sources:
+
+![](https://cnr.ncsu.edu/geospatial/wp-content/uploads/sites/22/2017/06/cgaBlack.png)

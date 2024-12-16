@@ -13,7 +13,11 @@ The United States is one of the world's leaders in timber production and the sou
 <img width="713" alt="Screenshot 2024-12-13 at 09 57 18" src="https://github.com/user-attachments/assets/437155b5-618c-48dd-916a-0976636ffa64" />
 
 
-Anson, Montgomery and Richmond counties represent three of the top 10 counties in NC for their delivered value from 2022. Each of these counties is assigned a primary goal within which agents will harvest and learn. At each timestep the agents update their cognitive behaviour and begin implementing the next phase of management based upon what they have learned in the previous iteration of harvesting.  
+Anson, Montgomery and Richmond counties represent three of the top 10 counties in NC for their delivered value from 2022. Each of these counties is assigned a primary goal within which agents will harvest and learn. At each timestep the agents update their cognitive behaviour and begin implementing the next phase of management based upon what they have learned in the previous iteration of harvesting. 
+
+![LANDIS LOGO](https://github.com/user-attachments/assets/c3a7dbfa-ac77-453f-be71-cfd472d3c52c)
+
+Image by Dr. Zachary Robbins, Los Alamos National Lab
 
 Thank you to our funding sources:
 

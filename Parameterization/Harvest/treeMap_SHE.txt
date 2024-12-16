@@ -2661,9 +2661,9 @@ Prescription MM20-1_DO1	<< OakPatchcutA
 	StandRanking	Economic
 	>>Species	EconomicRank	MinimumAge
 	>>————————————————————
-	QUAL		100			60
-	QURU		100			65
-	QUPH		90			65
+QUAL		100		50
+QUPR2		100		50
+QURU		100		50	
 MinimumAge		50
 	ForestTypeTable << Oak
 	>>InclusionRule	ageRange	percent	species
@@ -2733,9 +2733,9 @@ Prescription MM20-1_DO2	<< OakPatchcut
 	StandRanking	Economic
 	>>Species	EconomicRank	MinimumAge
 	>>————————————————————
-	QUAL		100			60
-	QURU		100			65
-	QUPH		90			65
+QUAL		100		50
+QUPR2		100		50
+QURU		100		50	
 MinimumAge		50
 	ForestTypeTable << Oak
 	>>InclusionRule	ageRange	percent	species
@@ -2805,9 +2805,9 @@ Prescription MM20-1_DO3	<< OakPatchcutC
 	StandRanking	Economic
 	>>Species	EconomicRank	MinimumAge
 	>>————————————————————
-	QUAL		100			60
-	QURU		100			65
-	QUPH		90			65
+QUAL		100		50
+QUPR2		100		50
+QURU		100		50	
 MinimumAge		50
 	ForestTypeTable << Oak
 	>>InclusionRule	ageRange	percent	species
@@ -3806,9 +3806,9 @@ Prescription MM25-1_DO1	<< OakVDTA
 	StandRanking	Economic
 	>>Species	EconomicRank	MinimumAge
 	>>————————————————————
-	QUAL		100			60
-	QURU		100			65
-	QUPH		90			65
+QUAL		100		50
+QUPR2		100		50
+QURU		100		50	
 MinimumAge		50
 	ForestTypeTable << Oak
 	>>InclusionRule	ageRange	percent	species
@@ -3850,9 +3850,9 @@ Prescription MM25-1_DO2	<< OakVDTB
 	StandRanking	Economic
 	>>Species	EconomicRank	MinimumAge
 	>>————————————————————
-	QUAL		100			60
-	QURU		100			65
-	QUPH		90			65
+QUAL		100		50
+QUPR2		100		50
+QURU		100		50	
 MinimumAge		50
 	ForestTypeTable << Oak
 	>>InclusionRule	ageRange	percent	species
@@ -3894,9 +3894,9 @@ Prescription MM25-1_DO3	<< OakVDTC
 	StandRanking	Economic
 	>>Species	EconomicRank	MinimumAge
 	>>————————————————————
-	QUAL		100			60
-	QURU		100			65
-	QUPH		90			65
+QUAL		100		50
+QUPR2		100		50
+QURU		100		50	
 MinimumAge		50
 	ForestTypeTable << Oak
 	>>InclusionRule	ageRange	percent	species

@@ -33,35 +33,11 @@ templateRaster <- rast("C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/T
 ManagementAreaRast <- rasterize(threeCounties, templateRaster, field = "ID")
 plot(ManagementAreaRast)
 
-# writeRaster(ManagementAreaRast,
-#             filename = "C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/Three_Counties_Rasters/Harvest/ManagementAreas.tif",
-#             datatype = "INT1U",
-#             NAflag = 0,
-#             overwrite = TRUE)
+writeRaster(ManagementAreaRast,
+            filename = "C:/Users/lagoodal/Desktop/Dissertation Stuff/Chapter 3/Three_Counties_Rasters/Harvest/ManagementAreas.tif",
+            datatype = "INT1U",
+            NAflag = 0,
+            overwrite = TRUE)
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
